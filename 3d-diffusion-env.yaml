@@ -91,4 +91,3 @@ dependencies:
       - tqdm==4.65.0
       - tzdata==2023.3
       - visu3d==1.5.1
-prefix: /home/zerone/Tools/anaconda3/envs/3d-diffusion
