@@ -214,7 +214,7 @@ class AttnBlock(torch.nn.Module):
         else:
             raise NotImplementedError(self.attn_type)
 
-        h = torch.stack([h0, h1], axis=1)
+        h = torch.stack([h0, h1], dim=1)
         h = h.view(B * F, C, H, W)
         h = self.linear(h)
         h = h.view(B, F, C, H, W)
@@ -224,7 +224,7 @@ class AttnBlock(torch.nn.Module):
 
 class XUNetBlock(torch.nn.Module):
 
-    def __init__(self, in_channels, features, use_attn=False, attn_heads=4, dropout=0):
+    def __init__(self, in_channels, features, use_attn=False, attn_heads=4, dropout: float = 0):
 
         super().__init__()
 
@@ -332,7 +332,7 @@ class ConditioningProcessor(torch.nn.Module):
         if self.use_pos_emb:
             pose_emb += self.pos_emb[None, None]
         if self.use_ref_pose_emb:
-            pose_emb = torch.concat([self.first_emb, self.other_emb], axis=1) + pose_emb
+            pose_emb = torch.concat([self.first_emb, self.other_emb], dim=1) + pose_emb
             # now [B, 2, C=144, H, W]
 
         pose_embs = []
@@ -367,9 +367,9 @@ class XUNet(torch.nn.Module):
         super().__init__()
 
         assert self.H % (2 ** (
-                    len(self.ch_mult) - 1)) == 0, f"Size of the image must me multiple of {2 ** (len(self.ch_mult) - 1)}"
+                len(self.ch_mult) - 1)) == 0, f"Size of the image must me multiple of {2 ** (len(self.ch_mult) - 1)}"
         assert self.W % (2 ** (
-                    len(self.ch_mult) - 1)) == 0, f"Size of the image must me multiple of {2 ** (len(self.ch_mult) - 1)}"
+                len(self.ch_mult) - 1)) == 0, f"Size of the image must me multiple of {2 ** (len(self.ch_mult) - 1)}"
 
         self.num_resolutions = len(self.ch_mult)
         self.conditioningprocessor = ConditioningProcessor(
