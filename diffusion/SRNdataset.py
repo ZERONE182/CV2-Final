@@ -9,6 +9,7 @@ import csv
 import torch
 import random
 
+
 class MultiEpochsDataLoader(torch.utils.data.DataLoader):
 
     def __init__(self, *args, **kwargs):
@@ -39,37 +40,36 @@ class _RepeatSampler(object):
         while True:
             yield from iter(self.sampler)
 
+
 class dataset(Dataset):
-    
+
     def __init__(self, split, path='./data/SRN/cars_train', picklefile='./data/cars.pickle', imgsize=128):
         self.imgsize = imgsize
         self.path = path
         super().__init__()
         self.picklefile = pickle.load(open(picklefile, 'rb'))
-        
+
         allthevid = sorted(list(self.picklefile.keys()))
-        
+
         random.seed(0)
         random.shuffle(allthevid)
         if split == 'train':
-            self.ids = allthevid[:int(len(allthevid)*0.9)]
+            self.ids = allthevid[:int(len(allthevid) * 0.9)]
         else:
-            self.ids = allthevid[int(len(allthevid)*0.9):]
-            
-                
-        
+            self.ids = allthevid[int(len(allthevid) * 0.9):]
+
     def __len__(self):
         return len(self.ids)
-    
-    def __getitem__(self,idx):
-        
+
+    def __getitem__(self, idx):
+
         item = self.ids[idx]
-        
+
         intrinsics_filename = os.path.join(self.path, item, 'intrinsics', self.picklefile[item][0][:-4] + ".txt")
-        K = np.array(open(intrinsics_filename).read().strip().split()).astype(float).reshape((3,3))
-        
+        K = np.array(open(intrinsics_filename).read().strip().split()).astype(float).reshape((3, 3))
+
         indices = random.sample(self.picklefile[item], k=2)
-        
+
         imgs = []
         poses = []
         for i in indices:
@@ -78,28 +78,28 @@ class dataset(Dataset):
             if self.imgsize != 128:
                 img = img.resize((self.imgsize, self.imgsize))
             img = np.array(img) / 255 * 2 - 1
-            
-            img = img.transpose(2,0,1)[:3].astype(np.float32)
+
+            img = img.transpose(2, 0, 1)[:3].astype(np.float32)
             imgs.append(img)
-            
-            
-            pose_filename = os.path.join(self.path, item, 'pose', i[:-4]+".txt")
-            pose = np.array(open(pose_filename).read().strip().split()).astype(float).reshape((4,4))
+
+            pose_filename = os.path.join(self.path, item, 'pose', i[:-4] + ".txt")
+            pose = np.array(open(pose_filename).read().strip().split()).astype(float).reshape((4, 4))
             poses.append(pose)
-            
+
         imgs = np.stack(imgs, 0)
         poses = np.stack(poses, 0)
         R = poses[:, :3, :3]
         T = poses[:, :3, 3]
-        
+
         return imgs, R, T, K
-    
+
+
 if __name__ == "__main__":
-    
+
     from torch.utils.data import DataLoader
-    
+
     d = dataset('train')
     dd = d[0]
-    
+
     for ddd in dd:
         print(ddd.shape)
