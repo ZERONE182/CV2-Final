@@ -40,7 +40,7 @@ def posenc_ddpm(timesteps, emb_ch: int, max_time=1000.):
     half_dim = emb_ch // 2
     # 10000 is the magic number from transformers.
     emb = np.log(10000) / (half_dim - 1)
-    emb = torch.exp(torch.arange(half_dim) * -emb).to(device=timesteps.get_device())
+    emb = torch.exp(torch.arange(half_dim) * -emb).to(device=timesteps.device)
     emb = emb.reshape(*([1] * (timesteps.ndim - 1)), emb.shape[-1])
     emb = timesteps[..., None] * emb
     emb = torch.concat([torch.sin(emb), torch.cos(emb)], dim=-1).float()
@@ -52,7 +52,7 @@ def posenc_nerf(x, min_deg=0, max_deg=15):
     """Concatenate x and its positional encodings, following NeRF."""
     if min_deg == max_deg:
         return x
-    scales = torch.tensor([2 ** i for i in range(min_deg, max_deg)]).float().to(x.get_device())
+    scales = torch.tensor([2 ** i for i in range(min_deg, max_deg)]).float().to(x)
 
     xb = rearrange(
         (x[..., None, :] * scales[:, None]), "b f h w c d -> b f h w (c d)")
@@ -314,8 +314,8 @@ class ConditioningProcessor(torch.nn.Module):
         rays = v3d.Camera(
             spec=cam_spec, world_from_cam=world_from_cam).rays()
 
-        pose_emb_pos = posenc_nerf(torch.tensor(rays.pos).float().to(batch['x'].get_device()), min_deg=0, max_deg=15)
-        pose_emb_dir = posenc_nerf(torch.tensor(rays.dir).float().to(batch['x'].get_device()), min_deg=0, max_deg=8)
+        pose_emb_pos = posenc_nerf(torch.tensor(rays.pos).float().to(batch['x']), min_deg=0, max_deg=15)
+        pose_emb_dir = posenc_nerf(torch.tensor(rays.dir).float().to(batch['x']), min_deg=0, max_deg=8)
 
         pose_emb = torch.concat([pose_emb_pos, pose_emb_dir], dim=-1)  # [batch, h, w, 144]
 
