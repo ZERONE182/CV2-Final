@@ -17,17 +17,17 @@ import argparse
 
 
 def main(args):
-    image_size = args.image_size
-    batch_size = args.batch_size
-    num_workers = args.num_workers
+    d = dataset('train', path=args.data_path, picklefile=args.pickle_path, imgsize=args.image_size)
+    d_val = dataset('val', path=args.data_path, picklefile=args.pickle_path, imgsize=args.image_size)
 
-    d = dataset('train', path=args.data_path, picklefile=args.pickle_path, imgsize=image_size)
-    d_val = dataset('val', path=args.data_path, picklefile=args.pickle_path, imgsize=image_size)
+    loader = MultiEpochsDataLoader(d, batch_size=args.batch_size,
+                                   shuffle=True, drop_last=True,
+                                   num_workers=args.num_workers)
+    loader_val = DataLoader(d_val, batch_size=args.batch_size,
+                            shuffle=True, drop_last=True,
+                            num_workers=args.num_workers)
 
-    loader = MultiEpochsDataLoader(d, batch_size=batch_size, shuffle=True, drop_last=True, num_workers=num_workers)
-    loader_val = DataLoader(d_val, batch_size=batch_size, shuffle=True, drop_last=True, num_workers=num_workers)
-
-    model = XUNet(H=image_size, W=image_size, ch=128)
+    model = XUNet(H=args.image_size, W=args.image_size, ch=128)
     model = torch.nn.DataParallel(model)
     model.to(utils.dev())
 
@@ -61,7 +61,7 @@ def warmup(optimizer, step, last_step, last_lr):
 
 def train(model, optimizer, loader, loader_val, writer, now, step, args):
     a = 1
-    for e in range(100000):
+    for e in range(args.num_epochs):
         print(f'starting epoch {e}')
 
         for img, R, T, K in tqdm(loader):
@@ -85,7 +85,7 @@ def train(model, optimizer, loader, loader_val, writer, now, step, args):
                 print("Loss:", loss.item())
 
             if step % args.validation_interval == 900:
-                validation(model, loader_val, writer, step)
+                validation(model, loader_val, writer, step, args.batch_size)
 
             if step == int(args.warmup_step / args.batch_size):
                 torch.save({'optim': optimizer.state_dict(), 'model': model.state_dict(), 'step': step},
@@ -98,11 +98,12 @@ def train(model, optimizer, loader, loader_val, writer, now, step, args):
                        now + f"/latest.pt")
 
 
-def validation(model, loader_val, writer, step):
+def validation(model, loader_val, writer, step, batch_size=8):
     model.eval()
     with torch.no_grad():
         ori_img, R, T, K = next(iter(loader_val))
-        w = torch.tensor([0, 1, 2, 3, 4, 5, 6, 7]).repeat(16)
+        # w = torch.tensor([0, 1, 2, 3, 4, 5, 6, 7]).repeat(16)
+        w = torch.tensor([3.0] * batch_size)
         img = utils.sample(model, img=ori_img, R=R, T=T, K=K, w=w)
 
         img = rearrange(((img[-1].clip(-1, 1) + 1) * 127.5).astype(np.uint8),
@@ -132,6 +133,7 @@ if __name__ == '__main__':
     parser.add_argument('--image_size', type=int, default=128)
     parser.add_argument('--transfer', type=str, default="")
     parser.add_argument('--lr', type=float, default=1e-4)
+    parser.add_argument('--num_epochs', type=int, default=100000)
     parser.add_argument('--warmup_step', type=int, default=10000000)
     parser.add_argument('--verbose_interval', type=int, default=500)
     parser.add_argument('--validation_interval', type=int, default=1000)

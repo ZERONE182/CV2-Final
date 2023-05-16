@@ -96,7 +96,7 @@ def p_sample(model, x, z, R, T, K, logsnr, logsnr_next, w):
 @torch.no_grad()
 def p_mean_variance(model, x, z, R, T, K, logsnr, logsnr_next, w=2.0):
     b = x.shape[0]
-    # w = w[:, None, None, None]
+    w = w[:, None, None, None]
 
     c = - torch.special.expm1(logsnr - logsnr_next)
     # c = 1 - e^{\lambda_t - \lambda_s}
@@ -110,14 +110,13 @@ def p_mean_variance(model, x, z, R, T, K, logsnr, logsnr_next, w=2.0):
 
     pred_noise = model(batch, cond_mask=torch.tensor([True] * b)).detach().cpu()
     batch['x'] = torch.randn_like(x)
-    # pred_noise_unconditioned = model(batch, cond_mask=torch.tensor([False] * b)).detach().cpu()
+    pred_noise_unconditioned = model(batch, cond_mask=torch.tensor([False] * b)).detach().cpu()
 
-    # pred_noise_final = (1 + w) * pred_noise - w * pred_noise_unconditioned
+    pred_noise_final = (1 + w) * pred_noise - w * pred_noise_unconditioned
 
     z = z.detach().cpu()
 
-    # z_start = (z - sigma * pred_noise_final) / alpha
-    z_start = (z - sigma * pred_noise) / alpha
+    z_start = (z - sigma * pred_noise_final) / alpha
     z_start.clamp_(-1., 1.)
 
     model_mean = alpha_next * (z * (1 - c) / alpha + c * z_start)
