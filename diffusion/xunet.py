@@ -282,6 +282,8 @@ class ConditioningProcessor(torch.nn.Module):
         )
 
         D = 144
+        # D is related to the max_deg and the min_deg of posenc_nerf together with x.shape[-1]
+        # So if all the values about are fixed, then no need to change D
         if use_pos_emb:
             self.pos_emb = torch.nn.Parameter(torch.zeros(D, H, W), requires_grad=True)
             torch.nn.init.normal_(self.pos_emb, std=(1 / np.sqrt(D)))
@@ -321,7 +323,6 @@ class ConditioningProcessor(torch.nn.Module):
 
         pose_emb = torch.concat([pose_emb_pos, pose_emb_dir], dim=-1)  # [batch, h, w, 144]
 
-        D = pose_emb.shape[-1]
         assert cond_mask.shape == (B,), (cond_mask.shape, B)
 
         cond_mask = cond_mask[:, None, None, None, None]
@@ -423,7 +424,7 @@ class XUNet(torch.nn.Module):
             attn_heads=self.attn_heads,
             use_attn=self.num_resolutions in self.attn_resolutions)
 
-        # upsample
+        # Downsampling
         self.upsample = torch.nn.ModuleDict()
         for i_level in reversed(range(self.num_resolutions)):
             single_level = torch.nn.ModuleList([])
@@ -445,8 +446,6 @@ class XUNet(torch.nn.Module):
                 else:
                     prev_h_channels = self.dim_out[i_level]
                     prev_emb_channels = self.dim_out[i_level]
-
-                    # self.dim_out[i_level]*2 if i_block != self.num_res_blocks else (self.dim_out[i_level] + self.dim_in[i_level])
 
                 in_channels = prev_h_channels + prev_emb_channels
 
@@ -515,7 +514,6 @@ class XUNet(torch.nn.Module):
             for i_block in range(self.num_res_blocks + 1):
                 h = torch.concat([h, hs.pop()], dim=-3)
 
-                orishape = h.shape
                 h = self.upsample[str(i_level)][i_block](h, emb)
 
             if i_level != 0:
