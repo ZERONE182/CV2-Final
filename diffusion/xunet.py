@@ -5,6 +5,8 @@ import visu3d as v3d
 import etils
 from etils.enp import numpy_utils
 import utils
+from typing import Tuple
+
 
 lazy = numpy_utils.lazy
 etils.enp.linalg._tf_or_xnp = lambda x: lazy.get_xnp(x)
@@ -356,10 +358,10 @@ class XUNet(torch.nn.Module):
     H: int = 128
     W: int = 128
     ch: int = 256
-    ch_mult: tuple[int] = (1, 2, 2, 4)
+    ch_mult: Tuple[int] = (1, 2, 2, 4)
     emb_ch: int = 1024
     num_res_blocks: int = 3
-    attn_resolutions: tuple[int] = (2, 3, 4)  # actually, level of depth, from 0 th N
+    attn_resolutions: Tuple[int] = (2, 3, 4)  # actually, level of depth, from 0 th N
     attn_heads: int = 4
     dropout: float = 0.1
     use_pos_emb: bool = True
