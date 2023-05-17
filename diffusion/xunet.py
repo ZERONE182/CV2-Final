@@ -307,7 +307,7 @@ class ConditioningProcessor(torch.nn.Module):
         B, C, H, W = batch['x'].shape
 
         logsnr = torch.clip(batch['logsnr'], -20, 20)
-        lossnr = 2 * torch.arctan(torch.exp(-logsnr / 2)) / torch.pi
+        logsnr = 2 * torch.arctan(torch.exp(-logsnr / 2)) / torch.pi
         logsnr_emb = posenc_ddpm(logsnr, emb_ch=self.emb_ch, max_time=1.)
         logsnr_emb = self.logsnr_emb_emb(logsnr_emb)
 
