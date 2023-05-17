@@ -1,16 +1,12 @@
-from torch.utils.data import Dataset
-import glob
 import os
 import pickle
-import torch
-from PIL import Image
-import numpy as np
-import csv
-import torch
 import random
+import numpy as np
+from PIL import Image
+from torch.utils.data import Dataset, DataLoader
 
 
-class MultiEpochsDataLoader(torch.utils.data.DataLoader):
+class MultiEpochsDataLoader(DataLoader):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -41,22 +37,22 @@ class _RepeatSampler(object):
             yield from iter(self.sampler)
 
 
-class dataset(Dataset):
+class SRNDataset(Dataset):
 
-    def __init__(self, split, path='./data/SRN/cars_train', picklefile='./data/cars.pickle', imgsize=128):
+    def __init__(self, split, path='./data/SRN/cars_train', pickle_file='./data/cars.pickle', imgsize=128):
         self.imgsize = imgsize
         self.path = path
         super().__init__()
-        self.picklefile = pickle.load(open(picklefile, 'rb'))
+        self.pickle_file = pickle.load(open(pickle_file, 'rb'))
 
-        allthevid = sorted(list(self.picklefile.keys()))
+        all_the_vid = sorted(list(self.pickle_file.keys()))
 
         random.seed(0)
-        random.shuffle(allthevid)
+        random.shuffle(all_the_vid)
         if split == 'train':
-            self.ids = allthevid[:int(len(allthevid) * 0.9)]
+            self.ids = all_the_vid[:int(len(all_the_vid) * 0.9)]
         else:
-            self.ids = allthevid[int(len(allthevid) * 0.9):]
+            self.ids = all_the_vid[int(len(all_the_vid) * 0.9):]
 
     def __len__(self):
         return len(self.ids)
@@ -65,10 +61,10 @@ class dataset(Dataset):
 
         item = self.ids[idx]
 
-        intrinsics_filename = os.path.join(self.path, item, 'intrinsics', self.picklefile[item][0][:-4] + ".txt")
+        intrinsics_filename = os.path.join(self.path, item, 'intrinsics', self.pickle_file[item][0][:-4] + ".txt")
         K = np.array(open(intrinsics_filename).read().strip().split()).astype(float).reshape((3, 3))
 
-        indices = random.sample(self.picklefile[item], k=2)
+        indices = random.sample(self.pickle_file[item], k=2)
 
         imgs = []
         poses = []
@@ -98,7 +94,7 @@ if __name__ == "__main__":
 
     from torch.utils.data import DataLoader
 
-    d = dataset('train')
+    d = SRNDataset('train')
     dd = d[0]
 
     for ddd in dd:

@@ -9,7 +9,7 @@ from tqdm import tqdm
 from einops import rearrange
 import time
 
-from SRNdataset import dataset, MultiEpochsDataLoader
+from SRNdataset import SRNDataset, MultiEpochsDataLoader
 from tensorboardX import SummaryWriter
 import os
 import utils
@@ -17,8 +17,8 @@ import argparse
 
 
 def main(args):
-    d = dataset('train', path=args.data_path, picklefile=args.pickle_path, imgsize=args.image_size)
-    d_val = dataset('val', path=args.data_path, picklefile=args.pickle_path, imgsize=args.image_size)
+    d = SRNDataset('train', path=args.data_path, pickle_file=args.pickle_path, imgsize=args.image_size)
+    d_val = SRNDataset('val', path=args.data_path, pickle_file=args.pickle_path, imgsize=args.image_size)
 
     loader = MultiEpochsDataLoader(d, batch_size=args.batch_size,
                                    shuffle=True, drop_last=True,
@@ -60,7 +60,6 @@ def warmup(optimizer, step, last_step, last_lr):
 
 
 def train(model, optimizer, loader, loader_val, writer, now, step, args):
-    a = 1
     for e in range(args.num_epochs):
         print(f'starting epoch {e}')
 

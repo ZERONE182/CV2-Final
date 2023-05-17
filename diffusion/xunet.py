@@ -4,11 +4,13 @@ from einops import rearrange
 import visu3d as v3d
 import etils
 from etils.enp import numpy_utils
+import utils
 
 lazy = numpy_utils.lazy
 etils.enp.linalg._tf_or_xnp = lambda x: lazy.get_xnp(x)
 
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+# device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+device = utils.dev()
 
 
 def out_init_scale():
@@ -110,8 +112,8 @@ class ResnetBlock(torch.nn.Module):
         else:
             self.updown = torch.nn.Identity()
 
-        self.groupnorm0 = GroupNorm(num_channels=in_features)
-        self.groupnorm1 = GroupNorm(num_channels=self.features)
+        self.groupNorm0 = GroupNorm(num_channels=in_features)
+        self.groupNorm1 = GroupNorm(num_channels=self.features)
 
         self.conv1 = torch.nn.Conv2d(in_channels=in_features,
                                      out_channels=self.features,
@@ -138,10 +140,10 @@ class ResnetBlock(torch.nn.Module):
 
         assert C == self.in_features
 
-        h = torch.nn.functional.silu(self.groupnorm0(h_in))
+        h = torch.nn.functional.silu(self.groupNorm0(h_in))
         h = self.conv1(h.view(B * F, C, H, W))
         h = h.view(B, F, self.features, H, W)
-        h = self.groupnorm1(h)
+        h = self.groupNorm1(h)
         h = self.film(h, emb)
         h = self.dropout(h)
         h = self.conv2(h.view(B * F, self.features, H, W)).view(B, F, self.features, H, W)
@@ -186,7 +188,7 @@ class AttnBlock(torch.nn.Module):
         self.attn_type = attn_type
         self.attn_heads = attn_heads
 
-        self.groupnorm = GroupNorm(num_channels=in_channels)
+        self.groupNorm = GroupNorm(num_channels=in_channels)
         self.attn_layer = AttnLayer(attn_heads=attn_heads, in_channels=in_channels)
         # self.attn_layer1 = AttnLayer(attn_heads=attn_heads, in_channels=in_channels)
         self.linear = torch.nn.Conv2d(in_channels, in_channels, kernel_size=1)
@@ -197,7 +199,7 @@ class AttnBlock(torch.nn.Module):
 
         assert self.in_channels == C, f"{self.in_channels} {C}"
 
-        h = self.groupnorm(h_in)
+        h = self.groupNorm(h_in)
         h0 = h[:, 0].reshape(B, C, H * W)
         h1 = h[:, 1].reshape(B, C, H * W)
 
@@ -234,15 +236,15 @@ class XUNetBlock(torch.nn.Module):
         self.attn_heads = attn_heads
         self.dropout = dropout
 
-        self.resnetblock = ResnetBlock(in_features=in_channels,
+        self.resnetBlock = ResnetBlock(in_features=in_channels,
                                        out_features=features,
                                        dropout=dropout)
 
         if use_attn:
-            self.attnblock_self = AttnBlock(attn_type="self",
+            self.attnBlock_self = AttnBlock(attn_type="self",
                                             attn_heads=attn_heads,
                                             in_channels=features)
-            self.attnblock_cross = AttnBlock(attn_type="cross",
+            self.attnBlock_cross = AttnBlock(attn_type="cross",
                                              attn_heads=attn_heads,
                                              in_channels=features)
 
@@ -250,11 +252,11 @@ class XUNetBlock(torch.nn.Module):
 
         assert x.shape[-3] == self.in_channels, f"check if channel size is correct, {x.shape[-3]}!={self.in_channels}"
 
-        h = self.resnetblock(x, emb)
+        h = self.resnetBlock(x, emb)
 
         if self.use_attn:
-            h = self.attnblock_self(h)
-            h = self.attnblock_cross(h)
+            h = self.attnBlock_self(h)
+            h = self.attnBlock_cross(h)
 
         return h
 
@@ -372,7 +374,7 @@ class XUNet(torch.nn.Module):
                 len(self.ch_mult) - 1)) == 0, f"Size of the image must me multiple of {2 ** (len(self.ch_mult) - 1)}"
 
         self.num_resolutions = len(self.ch_mult)
-        self.conditioningprocessor = ConditioningProcessor(
+        self.conditioningProcessor = ConditioningProcessor(
             emb_ch=self.emb_ch,
             num_resolutions=self.num_resolutions,
             use_pos_emb=self.use_pos_emb,
@@ -388,7 +390,7 @@ class XUNet(torch.nn.Module):
         self.dim_out = (self.ch * np.array(self.ch_mult)).tolist()
 
         # upsampling
-        self.xunetblocks = torch.nn.ModuleList([])
+        self.xunetBlocks = torch.nn.ModuleList([])
         for i_level in range(self.num_resolutions):
 
             single_level = torch.nn.ModuleList([])
@@ -410,7 +412,7 @@ class XUNet(torch.nn.Module):
                                                 out_features=self.dim_out[i_level],
                                                 dropout=self.dropout,
                                                 resample='down'))
-            self.xunetblocks.append(single_level)
+            self.xunetBlocks.append(single_level)
 
         # middle
 
@@ -478,7 +480,7 @@ class XUNet(torch.nn.Module):
         assert B == cond_mask.shape[0]
         assert (H, W) == (self.H, self.W), ((H, W), (self.H, self.W))
 
-        logsnr_emb, pose_embs = self.conditioningprocessor(batch, cond_mask)
+        logsnr_emb, pose_embs = self.conditioningProcessor(batch, cond_mask)
 
         del cond_mask
 
@@ -493,11 +495,11 @@ class XUNet(torch.nn.Module):
             emb = logsnr_emb[..., None, None] + pose_embs[i_level]
 
             for i_block in range(self.num_res_blocks):
-                h = self.xunetblocks[i_level][i_block](h, emb)
+                h = self.xunetBlocks[i_level][i_block](h, emb)
                 hs.append(h)
 
             if i_level != self.num_resolutions - 1:
-                h = self.xunetblocks[i_level][-1](
+                h = self.xunetBlocks[i_level][-1](
                     h, emb)
                 hs.append(h)
 
@@ -524,27 +526,26 @@ class XUNet(torch.nn.Module):
         h = torch.nn.functional.silu(self.lastgn(h))  # [B, F, self.ch, 128, 128]
         return rearrange(self.lastconv(rearrange(h, 'b f c h w -> (b f) c h w')), '(b f) c h w -> b f c h w', b=B)[:, 1]
 
-
-if __name__ == "__main__":
-    h, w = 56, 56
-    b = 8
-    a = torch.nn.DataParallel(XUNet(H=h, W=w, ch=128)).cuda()
-
-    batch = {
-        'x': torch.zeros(b, 3, h, w).cuda(),
-        'z': torch.zeros(b, 3, h, w).cuda(),
-        'logsnr': torch.tensor([10] * (2 * b)).reshape(b, 2),
-        'R': torch.tensor([[[  # Define a rigid rotation
-            [-1 / 3, -(1 / 3) ** .5, (1 / 3) ** .5],
-            [1 / 3, -(1 / 3) ** .5, -(1 / 3) ** .5],
-            [-2 / 3, 0, -(1 / 3) ** .5]],
-        ]]).repeat(b, 2, 1, 1).cuda(),
-        't': torch.tensor([[[2, 2, 2]]]).repeat(b, 2, 1).cuda(),
-        'K': torch.tensor([[  # Define a rigid rotation
-            [1, 0, 0],
-            [0, 1, 0],
-            [0, 0, 1],
-        ]]).repeat(b, 1, 1).cuda(),
-    }
-
-    print(a(batch, cond_mask=torch.tensor([True] * b).cuda()).shape)
+# if __name__ == "__main__":
+#     h, w = 56, 56
+#     b = 8
+#     a = torch.nn.DataParallel(XUNet(H=h, W=w, ch=128)).cuda()
+#
+#     batch = {
+#         'x': torch.zeros(b, 3, h, w).cuda(),
+#         'z': torch.zeros(b, 3, h, w).cuda(),
+#         'logsnr': torch.tensor([10] * (2 * b)).reshape(b, 2),
+#         'R': torch.tensor([[[  # Define a rigid rotation
+#             [-1 / 3, -(1 / 3) ** .5, (1 / 3) ** .5],
+#             [1 / 3, -(1 / 3) ** .5, -(1 / 3) ** .5],
+#             [-2 / 3, 0, -(1 / 3) ** .5]],
+#         ]]).repeat(b, 2, 1, 1).cuda(),
+#         't': torch.tensor([[[2, 2, 2]]]).repeat(b, 2, 1).cuda(),
+#         'K': torch.tensor([[  # Define a rigid rotation
+#             [1, 0, 0],
+#             [0, 1, 0],
+#             [0, 0, 1],
+#         ]]).repeat(b, 1, 1).cuda(),
+#     }
+#
+#     print(a(batch, cond_mask=torch.tensor([True] * b).cuda()).shape)
