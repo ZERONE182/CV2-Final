@@ -222,11 +222,7 @@ class ConditionalVAE(nn.Module):
         kld = torch.mean(
         -0.5 * torch.sum(1 + z_logvar - z_mu.pow(2) - z_logvar.exp(), dim=1), dim=0
         )
-        if torch.isnan(kld):
-            print(z_mu[0])
-            print(z_logvar[0])
-            raise RuntimeError("KLD is nan")
-        img_loss = (img_gt**2 - img_recon**2).mean()
+        img_loss = ((img_gt - img_recon)**2).mean()
         return self.beta * kld , img_loss
     
     def eval(self, batch, cond_mask=None):
