@@ -86,7 +86,7 @@ def train(model, optimizer, loader, loader_val, writer, now, step, args):
             if step % args.verbose_interval == 0:
                 print(f"loss: {loss.item()}, kld loss: {kld_loss.item()}, img loss: {img_loss.item()}")
 
-            if step % args.validation_interval == 900:
+            if step % args.validation_interval == 0:
                 validation(model, loader_val, writer, step, args.batch_size)
 
             if step == int(args.warmup_step / args.batch_size):
@@ -100,29 +100,22 @@ def train(model, optimizer, loader, loader_val, writer, now, step, args):
                        now + f"/latest.pt")
 
 
-def validation(model, loader_val, writer, step, batch_size=8):
+def validation(model, loader_val, writer, step, batch_size=8, device='cuda'):
     # TODO: Add image writer
     model.eval()
     with torch.no_grad():
         ori_img, R, T, K = next(iter(loader_val))
-        # w = torch.tensor([0, 1, 2, 3, 4, 5, 6, 7]).repeat(16)
-        w = torch.tensor([3.0] * batch_size)
-        # img = utils.sample(model, img=ori_img, R=R, T=T, K=K, w=w)
+        
+        batch = {'x':ori_img[:,0].to(device), 'z':ori_img[:,1].to(device), 'R': R.to(device), 't': T.to(device), 'K': K.to(device),}
+        gt_img = ori_img[:, 1].detach().cpu().numpy()
+        gt_img = ((gt_img.clip(-1, 1)+1)*127.5).astype(np.uint8)
+        pred_img = model.module.eval_img(batch, None).detach().cpu().numpy()
+        pred_img = ((pred_img.clip(-1, 1)+1)*127.5).astype(np.uint8)
 
-        img = rearrange(((img[-1].clip(-1, 1) + 1) * 127.5).astype(np.uint8),
-                        "(b a) c h w -> a c h (b w)",
-                        a=8, b=16)
+        writer.add_images(f"train/gt", gt_img, step)
+        writer.add_images(f"train/pred",pred_img, step)
 
-        gt = rearrange(((ori_img[:, 1] + 1) * 127.5).detach().cpu().numpy().astype(np.uint8),
-                       "(b a) c h w -> a c h (b w)", a=8, b=16)
-        cd = rearrange(((ori_img[:, 0] + 1) * 127.5).detach().cpu().numpy().astype(np.uint8),
-                       "(b a) c h w -> a c h (b w)", a=8, b=16)
-
-        fi = np.concatenate([cd, gt, img], axis=2)
-        for i, ww in enumerate(range(8)):
-            writer.add_image(f"train/{ww}", fi[i], step)
-
-    print('image sampled!')
+    # print('image sampled!')
     writer.flush()
     model.train()
 

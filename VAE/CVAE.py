@@ -225,7 +225,7 @@ class ConditionalVAE(nn.Module):
         img_loss = ((img_gt - img_recon)**2).mean()
         return self.beta * kld , img_loss
     
-    def eval(self, batch, cond_mask=None):
+    def eval_img(self, batch, cond_mask=None):
         pose_embeds = self.condition_processor(batch, cond_mask)
         x = batch['x']
         z_mu, z_logvar = self.encode(x, pose_embeds)
