@@ -101,22 +101,20 @@ def validation(model, loader_val, writer, step, batch_size=8):
     model.eval()
     with torch.no_grad():
         ori_img, R, T, K = next(iter(loader_val))
-        # w = torch.tensor([0, 1, 2, 3, 4, 5, 6, 7]).repeat(16)
         w = torch.tensor([3.0] * batch_size)
         img = utils.sample(model, img=ori_img, R=R, T=T, K=K, w=w)
 
         img = rearrange(((img[-1].clip(-1, 1) + 1) * 127.5).astype(np.uint8),
                         "(b a) c h w -> a c h (b w)",
-                        a=8, b=16)
+                        a=1, b=batch_size)
 
         gt = rearrange(((ori_img[:, 1] + 1) * 127.5).detach().cpu().numpy().astype(np.uint8),
-                       "(b a) c h w -> a c h (b w)", a=8, b=16)
+                       "(b a) c h w -> a c h (b w)", a=1, b=batch_size)
         cd = rearrange(((ori_img[:, 0] + 1) * 127.5).detach().cpu().numpy().astype(np.uint8),
-                       "(b a) c h w -> a c h (b w)", a=8, b=16)
+                       "(b a) c h w -> a c h (b w)", a=1, b=batch_size)
 
         fi = np.concatenate([cd, gt, img], axis=2)
-        for i, ww in enumerate(range(8)):
-            writer.add_image(f"train/{ww}", fi[i], step)
+        writer.add_image(f"train/val_{step}", fi[0], step)
 
     print('image sampled!')
     writer.flush()

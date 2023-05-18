@@ -77,7 +77,7 @@ def sample(model, img, R, T, K, w, timesteps=256):
     logsnr_nexts = logsnr_schedule_cosine(torch.linspace(1., 0., timesteps + 1)[1:])
 
     for logsnr, logsnr_next in tqdm(zip(logsnrs, logsnr_nexts)):  # [1, ..., 0] = size is 257
-        img = p_sample(model, x=x, z=img, R=R, T=T, K=K, logsnr=logsnr, logsnr_next=logsnr_next, w=w)
+        img = p_sample(model, x=x, z=img, R=R, T=T, K=K, logsnr=logsnr, logsnr_next=logsnr_next, w=w)  # [B, C, H, W]
         imgs.append(img.cpu().numpy())
     return imgs
 
