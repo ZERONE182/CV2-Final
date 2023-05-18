@@ -133,7 +133,7 @@ if __name__ == '__main__':
     parser.add_argument('--transfer', type=str, default="")
     parser.add_argument('--lr', type=float, default=1e-4)
     parser.add_argument('--num_epochs', type=int, default=100000)
-    parser.add_argument('--warmup_step', type=int, default=10000000)
+    parser.add_argument('--warmup_step', type=int, default=30000)
     parser.add_argument('--verbose_interval', type=int, default=500)
     parser.add_argument('--validation_interval', type=int, default=1000)
     parser.add_argument('--save_interval', type=int, default=20)
