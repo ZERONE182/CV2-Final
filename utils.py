@@ -2,7 +2,7 @@ import torch
 import numpy as np
 import torch.nn.functional as F
 from tqdm import tqdm
-
+from matplotlib import pyplot as plt
 
 def dev():
     return torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -39,7 +39,7 @@ def q_sample(z, logsnr, noise):
 
 
 def p_losses(denoise_model, img, R, T, K, logsnr, noise=None, loss_type="l2", cond_prob=0.1):
-    B = img.shape[0]
+    B, N, C, H, W = img.shape
     x = img[:, 0]
     z = img[:, 1]
     if noise is None:
@@ -64,7 +64,15 @@ def p_losses(denoise_model, img, R, T, K, logsnr, noise=None, loss_type="l2", co
     else:
         raise NotImplementedError()
 
-    return loss
+    rec_img = reconstruct_z_start(z_noisy, predicted_noise, logsnr)
+
+    img_color_mean = torch.mean(z, dim=(2, 3))
+    rec_color_mean = torch.mean(rec_img, dim=(2, 3))
+
+    color_loss = torch.nn.MSELoss()
+    color_loss = (logsnr + 20) / 20 * color_loss(img_color_mean, rec_color_mean)
+
+    return loss + color_loss
 
 
 @torch.no_grad()
@@ -80,6 +88,24 @@ def sample(model, img, R, T, K, w, timesteps=256):
         img = p_sample(model, x=x, z=img, R=R, T=T, K=K, logsnr=logsnr, logsnr_next=logsnr_next, w=w)  # [B, C, H, W]
         imgs.append(img.cpu().numpy())
     return imgs
+
+
+def reconstruct_z_start(z_noisy, pred_noise, logsnr):
+    B = z_noisy.shape[0]
+    logsnr_next = torch.tensor([20.0] * B)
+    c = - torch.special.expm1(logsnr - logsnr_next)[:, None, None, None]
+    squared_alpha, squared_alpha_next = logsnr.sigmoid(), logsnr_next.sigmoid()
+    squared_sigma, squared_sigma_next = (-logsnr).sigmoid(), (-logsnr_next).sigmoid()
+    alpha, sigma, alpha_next = map(lambda a: a.sqrt(), (squared_alpha, squared_sigma, squared_alpha_next))
+    alpha = alpha[:, None, None, None]
+    sigma = sigma[:, None, None, None]
+    alpha_next = alpha_next[:, None, None, None]
+
+    z_start = (z_noisy - sigma * pred_noise) / alpha
+    z_start.clamp_(-1., 1.)
+
+    z_start = alpha_next * (z_noisy * (1 - c) / alpha + c * z_start)
+    return z_start
 
 
 @torch.no_grad()

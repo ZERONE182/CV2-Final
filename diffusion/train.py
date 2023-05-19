@@ -40,7 +40,7 @@ def main(args):
     else:
         print('transferring from: ', args.transfer)
 
-        ckpt = torch.load(os.path.join(args.transfer, 'latest.pt'))
+        ckpt = torch.load(os.path.join(args.transfer, 'latest.pt'), map_location=torch.device(utils.dev()))
 
         model.load_state_dict(ckpt['model'])
         optimizer.load_state_dict(ckpt['optim'])
@@ -64,16 +64,18 @@ def train(model, optimizer, loader, loader_val, writer, now, step, args):
         print(f'starting epoch {e}')
 
         for img, R, T, K in tqdm(loader):
+            # validation(model, loader_val, writer, step, args.timesteps, args.batch_size)
+
             warmup(optimizer, step, args.warmup_step / args.batch_size, args.lr)
 
             B = img.shape[0]
 
             optimizer.zero_grad()
 
-            logsnr = utils.logsnr_schedule_cosine(torch.rand((B,)))
+            logsnr = utils.logsnr_schedule_cosine(torch.rand((B, )))
 
-            loss = utils.p_losses(model, img=img, R=R, T=T, K=K, logsnr=logsnr, loss_type="l2",
-                                  cond_prob=0.1)
+            loss = utils.p_losses(model, img=img, R=R, T=T, K=K, logsnr=logsnr,
+                                  loss_type="l2", cond_prob=0.1)
             loss.backward()
             optimizer.step()
 
@@ -84,7 +86,7 @@ def train(model, optimizer, loader, loader_val, writer, now, step, args):
                 print("Loss:", loss.item())
 
             if step % args.validation_interval == 900:
-                validation(model, loader_val, writer, step, args.batch_size)
+                validation(model, loader_val, writer, step, args.timesteps, args.batch_size)
 
             if step == int(args.warmup_step / args.batch_size):
                 torch.save({'optim': optimizer.state_dict(), 'model': model.state_dict(), 'step': step},
@@ -97,12 +99,12 @@ def train(model, optimizer, loader, loader_val, writer, now, step, args):
                        now + f"/latest.pt")
 
 
-def validation(model, loader_val, writer, step, batch_size=8):
+def validation(model, loader_val, writer, step, timesteps, batch_size=8):
     model.eval()
     with torch.no_grad():
         ori_img, R, T, K = next(iter(loader_val))
         w = torch.tensor([3.0] * batch_size)
-        img = utils.sample(model, img=ori_img, R=R, T=T, K=K, w=w)
+        img = utils.sample(model, img=ori_img, R=R, T=T, K=K, w=w, timesteps=timesteps)
 
         img = rearrange(((img[-1].clip(-1, 1) + 1) * 127.5).astype(np.uint8),
                         "(b a) c h w -> a c h (b w)",
@@ -135,6 +137,7 @@ if __name__ == '__main__':
     parser.add_argument('--verbose_interval', type=int, default=500)
     parser.add_argument('--validation_interval', type=int, default=1000)
     parser.add_argument('--save_interval', type=int, default=20)
+    parser.add_argument('--timesteps', type=int, default=256)
     parser.add_argument('--save_path', type=str, default="./results")
     opts = parser.parse_args()
     main(opts)
