@@ -92,7 +92,7 @@ def sample(model, img, R, T, K, w, timesteps=256):
 
 def reconstruct_z_start(z_noisy, pred_noise, logsnr):
     B = z_noisy.shape[0]
-    logsnr_next = torch.tensor([20.0] * B)
+    logsnr_next = torch.tensor([20.0] * B).to(dev())
     c = - torch.special.expm1(logsnr - logsnr_next)[:, None, None, None]
     squared_alpha, squared_alpha_next = logsnr.sigmoid(), logsnr_next.sigmoid()
     squared_sigma, squared_sigma_next = (-logsnr).sigmoid(), (-logsnr_next).sigmoid()
