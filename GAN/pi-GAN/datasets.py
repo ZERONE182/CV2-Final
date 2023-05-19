@@ -80,7 +80,7 @@ class SRN(Dataset):
         super().__init__()
         paths = glob.glob(dataset_path)
         self.data = []
-        for path in paths[0:3]:
+        for path in paths:
             self.data = self.data + glob.glob(path + '/rgb/*.png')
         assert len(self.data) > 0, "Can't find data; make sure you specify the path to your dataset"
         self.transform = transforms.Compose(
