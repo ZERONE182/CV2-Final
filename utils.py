@@ -66,10 +66,10 @@ def p_losses(denoise_model, img, R, T, K, logsnr, noise=None, loss_type="l2", co
 
     rec_img = reconstruct_z_start(z_noisy.to(dev()), predicted_noise, logsnr.to(dev()))
     img_color_mean = torch.mean(z, dim=(2, 3))
-    rec_color_mean = torch.mean(rec_img, dim=(2, 3)).to(dev())
+    rec_color_mean = torch.mean(rec_img, dim=(2, 3))
 
     color_loss = torch.nn.MSELoss()
-    color_loss = (logsnr.to(dev()) + 20) / 20 * color_loss(img_color_mean, rec_color_mean)
+    color_loss = (logsnr.to(dev()) + 20) / 20 * color_loss(img_color_mean.to(dev()), rec_color_mean)
 
     return loss + color_loss
 
