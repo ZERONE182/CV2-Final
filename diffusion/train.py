@@ -1,3 +1,5 @@
+import torchvision.transforms.functional
+
 from xunet import XUNet
 
 import torch
@@ -63,7 +65,7 @@ def train(model, optimizer, loader, loader_val, writer, now, step, args):
     for e in range(args.num_epochs):
         print(f'starting epoch {e}')
 
-        for img, R, T, K in tqdm(loader):
+        for img, R, T, K, hue_delta in tqdm(loader):
             # validation(model, loader_val, writer, step, args.timesteps, args.batch_size)
 
             warmup(optimizer, step, args.warmup_step / args.batch_size, args.lr)
@@ -74,7 +76,7 @@ def train(model, optimizer, loader, loader_val, writer, now, step, args):
 
             logsnr = utils.logsnr_schedule_cosine(torch.rand((B, )))
 
-            loss = utils.p_losses(model, img=img, R=R, T=T, K=K, logsnr=logsnr,
+            loss = utils.p_losses(model, img=img, R=R, T=T, K=K, logsnr=logsnr, hue_delta=hue_delta,
                                   loss_type="l2", cond_prob=0.1)
             loss.backward()
             optimizer.step()
@@ -102,7 +104,7 @@ def train(model, optimizer, loader, loader_val, writer, now, step, args):
 def validation(model, loader_val, writer, step, timesteps, batch_size=8):
     model.eval()
     with torch.no_grad():
-        ori_img, R, T, K = next(iter(loader_val))
+        ori_img, R, T, K, hue_delta = next(iter(loader_val))
         w = torch.tensor([3.0] * batch_size)
         img = utils.sample(model, img=ori_img, R=R, T=T, K=K, w=w, timesteps=timesteps)
 

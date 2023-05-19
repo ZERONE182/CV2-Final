@@ -7,7 +7,6 @@ from etils.enp import numpy_utils
 import utils
 from typing import Tuple
 
-
 lazy = numpy_utils.lazy
 etils.enp.linalg._tf_or_xnp = lambda x: lazy.get_xnp(x)
 
@@ -426,6 +425,20 @@ class XUNet(torch.nn.Module):
             attn_heads=self.attn_heads,
             use_attn=self.num_resolutions in self.attn_resolutions)
 
+        # hue_delta prediction
+        self.hue_decoder = torch.nn.Sequential(
+            torch.nn.Conv2d(self.dim_out[-1] * 2, self.dim_out[-1] * 4, kernel_size=3, padding=1),  # 1024 -> 2048
+            torch.nn.AvgPool2d(kernel_size=2, stride=2),  # 8x8 -> 4x4
+            torch.nn.ReLU(),
+            torch.nn.Conv2d(self.dim_out[-1] * 4, self.dim_out[-1] // 4, kernel_size=1, stride=1),  # 2048 -> 128
+            torch.nn.ReLU(),
+            torch.nn.Flatten(start_dim=1),  # 128x4x4 -> 2048
+            torch.nn.Linear(2048, 256),  # 4098 -> 256
+            torch.nn.ReLU(),
+            torch.nn.Linear(256, 1),  # 256 -> 1
+            torch.nn.Tanh()
+        )
+
         # Downsampling
         self.upsample = torch.nn.ModuleDict()
         for i_level in reversed(range(self.num_resolutions)):
@@ -509,6 +522,8 @@ class XUNet(torch.nn.Module):
 
         h = self.middle(h, emb)
 
+        hue_delta = self.hue_decoder(rearrange(h, 'b f c h w -> b (f c) h w'))
+        # hue_delta = rearrange(hue_delta, '(b f) d -> b f d', b=B, f=2)
         # upsampling
         for i_level in reversed(range(self.num_resolutions)):
             emb = logsnr_emb[..., None, None] + pose_embs[i_level]
@@ -524,7 +539,9 @@ class XUNet(torch.nn.Module):
         assert not hs  # check hs is empty
 
         h = torch.nn.functional.silu(self.lastgn(h))  # [B, F, self.ch, 128, 128]
-        return rearrange(self.lastconv(rearrange(h, 'b f c h w -> (b f) c h w')), '(b f) c h w -> b f c h w', b=B)[:, 1]
+        pred_noise = self.lastconv(rearrange(h, 'b f c h w -> (b f) c h w'))
+        pred_noise = rearrange(pred_noise, '(b f) c h w -> b f c h w', b=B)[:, 1]
+        return pred_noise, hue_delta
 
 # if __name__ == "__main__":
 #     h, w = 56, 56

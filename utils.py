@@ -1,8 +1,10 @@
 import torch
 import numpy as np
 import torch.nn.functional as F
+import torchvision.transforms.functional
 from tqdm import tqdm
 from matplotlib import pyplot as plt
+
 
 def dev():
     return torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -38,7 +40,8 @@ def q_sample(z, logsnr, noise):
     return alpha * z + sigma * noise
 
 
-def p_losses(denoise_model, img, R, T, K, logsnr, noise=None, loss_type="l2", cond_prob=0.1, use_color_loss=False):
+def p_losses(denoise_model, img, R, T, K, logsnr, hue_delta, noise=None, loss_type="l2", cond_prob=0.1,
+             use_color_loss=False):
     B, N, C, H, W = img.shape
     x = img[:, 0]
     z = img[:, 1]
@@ -53,8 +56,11 @@ def p_losses(denoise_model, img, R, T, K, logsnr, noise=None, loss_type="l2", co
 
     batch = xt2batch(x=x_condition, logsnr=logsnr, z=z_noisy, R=R, T=T, K=K)
 
-    predicted_noise = denoise_model(batch, cond_mask=cond_mask)
+    predicted_noise, hue_pred = denoise_model(batch, cond_mask=cond_mask)
 
+    recovered_img = torch.stack([torchvision.transforms.functional.adjust_hue(x[i], hue_delta[i]) for i in range(B)])
+    pred_recovered_img = torch.stack([torchvision.transforms.functional.adjust_hue(predicted_noise[i], hue_pred[i])
+                                      for i in range(B)])
     if loss_type == 'l1':
         loss = F.l1_loss(noise.to(dev()), predicted_noise)
     elif loss_type == 'l2':
@@ -71,7 +77,10 @@ def p_losses(denoise_model, img, R, T, K, logsnr, noise=None, loss_type="l2", co
         color_loss = torch.nn.MSELoss()
         color_loss = ((logsnr.to(dev()) + 20) / 20 * color_loss(img_color_mean.to(dev()), rec_color_mean)).mean()
         return loss + color_loss
-    return loss
+    hue_loss_weight = F.mse_loss(recovered_img.to(dev()), pred_recovered_img)
+    hue_loss = F.mse_loss(hue_pred.squeeze(), hue_delta.to(hue_pred))
+    hue_loss = hue_loss_weight * hue_loss
+    return loss + hue_loss
 
 
 @torch.no_grad()
