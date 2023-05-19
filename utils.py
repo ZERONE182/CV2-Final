@@ -41,7 +41,7 @@ def q_sample(z, logsnr, noise):
 
 
 def p_losses(denoise_model, img, R, T, K, logsnr, hue_delta, noise=None, loss_type="l2", cond_prob=0.1,
-             use_color_loss=False):
+             use_color_loss=False, use_hue_loss=False):
     B, N, C, H, W = img.shape
     x = img[:, 0]
     z = img[:, 1]
@@ -55,10 +55,10 @@ def p_losses(denoise_model, img, R, T, K, logsnr, hue_delta, noise=None, loss_ty
     x_condition = torch.where(cond_mask[:, None, None, None], x, torch.randn_like(x))
 
     batch = xt2batch(x=x_condition, logsnr=logsnr, z=z_noisy, R=R, T=T, K=K)
-
-    predicted_noise, hue_pred = denoise_model(batch, cond_mask=cond_mask)
-    x = x * 0.5 + 0.5
-    recovered_img = torch.stack([torchvision.transforms.functional.adjust_hue(x[i], hue_delta[i]) for i in range(B)])
+    if use_hue_loss:
+        predicted_noise, hue_pred = denoise_model(batch, cond_mask=cond_mask)
+    else:
+        predicted_noise = denoise_model(batch, cond_mask=cond_mask)
     if loss_type == 'l1':
         loss = F.l1_loss(noise.to(dev()), predicted_noise)
     elif loss_type == 'l2':
@@ -75,10 +75,15 @@ def p_losses(denoise_model, img, R, T, K, logsnr, hue_delta, noise=None, loss_ty
         color_loss = torch.nn.MSELoss()
         color_loss = ((logsnr.to(dev()) + 20) / 20 * color_loss(img_color_mean.to(dev()), rec_color_mean)).mean()
         return loss + color_loss
-    hue_loss_weight = F.mse_loss(recovered_img.to(dev()) * 255, x.to(dev()) * 255)
-    hue_loss = 0.1 * F.mse_loss(hue_pred.squeeze(), hue_delta.to(hue_pred))
-    hue_loss = hue_loss_weight * hue_loss
-    return loss + hue_loss
+    if use_hue_loss:
+        x = x * 0.5 + 0.5
+        recovered_img = torch.stack([torchvision.transforms.functional.adjust_hue(x[i], hue_delta[i]) for i in range(B)])
+        hue_loss_weight = F.mse_loss(recovered_img.to(dev()) * 255, x.to(dev()) * 255)
+        hue_loss = 0.1 * F.mse_loss(hue_pred.squeeze(), hue_delta.to(hue_pred))
+        hue_loss = hue_loss_weight * hue_loss
+        return loss + hue_loss
+    else:
+        return loss
 
 
 @torch.no_grad()

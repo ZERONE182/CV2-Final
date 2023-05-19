@@ -29,7 +29,7 @@ def main(args):
                             shuffle=True, drop_last=True,
                             num_workers=args.num_workers)
 
-    model = XUNet(H=args.image_size, W=args.image_size, ch=128)
+    model = XUNet(use_hue_decoder=args.use_hue_decoder, H=args.image_size, W=args.image_size, ch=128)
     model = torch.nn.DataParallel(model)
     model.to(utils.dev())
 
@@ -77,7 +77,7 @@ def train(model, optimizer, loader, loader_val, writer, now, step, args):
             logsnr = utils.logsnr_schedule_cosine(torch.rand((B, )))
 
             loss = utils.p_losses(model, img=img, R=R, T=T, K=K, logsnr=logsnr, hue_delta=hue_delta,
-                                  loss_type="l2", cond_prob=0.1)
+                                  loss_type="l2", cond_prob=0.1, use_hue_loss=args.use_hue_decoder)
             loss.backward()
             optimizer.step()
 
@@ -141,5 +141,6 @@ if __name__ == '__main__':
     parser.add_argument('--save_interval', type=int, default=20)
     parser.add_argument('--timesteps', type=int, default=256)
     parser.add_argument('--save_path', type=str, default="./results")
+    parser.add_argument('--use_hue_decoder', action='store_true')
     opts = parser.parse_args()
     main(opts)
