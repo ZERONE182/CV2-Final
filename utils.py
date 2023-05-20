@@ -80,7 +80,7 @@ def p_losses(denoise_model, img, R, T, K, logsnr, hue_delta, noise=None, loss_ty
         recovered_img = torch.stack(
             [torchvision.transforms.functional.adjust_hue(x[i], hue_delta[i]) for i in range(B)])
         hue_loss_weight = F.mse_loss(recovered_img.to(dev()) * 255, x.to(dev()) * 255)
-        hue_loss = 0.1 * F.mse_loss(hue_pred.squeeze(), hue_delta.to(hue_pred))
+        hue_loss = 0.01 * F.mse_loss(hue_pred.squeeze(), hue_delta.to(hue_pred))
         hue_loss = hue_loss_weight * hue_loss
         return loss + hue_loss
     else:
