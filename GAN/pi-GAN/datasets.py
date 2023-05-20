@@ -76,7 +76,7 @@ import numpy as np
 
 class SRN(Dataset):
 
-    def __init__(self,  dataset_path, img_size, **kwargs):
+    def __init__(self,  dataset_path='../../data/SRN/cars_train/*', img_size=128, **kwargs):
         super().__init__()
         paths = glob.glob(dataset_path)
         self.data = []

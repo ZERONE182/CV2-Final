@@ -235,7 +235,6 @@ def train(rank, world_size, opt):
                     grad_penalty = 0
 
                 g_preds, g_pred_latent, g_pred_position = discriminator_ddp(gen_imgs, alpha, **metadata)
-                print(g_preds, g_pred_latent, g_pred_position)
                 
                 if metadata['z_lambda'] > 0 or metadata['pos_lambda'] > 0:
                     latent_penalty = torch.nn.MSELoss()(g_pred_latent, z) * metadata['z_lambda']
@@ -385,14 +384,14 @@ def train(rank, world_size, opt):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument("--n_epochs", type=int, default=3000, help="number of epochs of training")
-    parser.add_argument("--sample_interval", type=int, default=200, help="interval between image sampling")
+    parser.add_argument("--n_epochs", type=int, default=30, help="number of epochs of training")
+    parser.add_argument("--sample_interval", type=int, default=1000, help="interval between image sampling")
     parser.add_argument('--output_dir', type=str, default='debug')
     parser.add_argument('--load_dir', type=str, default='')
     parser.add_argument('--curriculum', type=str, required=True)
     parser.add_argument('--eval_freq', type=int, default=5000)
     parser.add_argument('--port', type=str, default='12355')
-    parser.add_argument('--set_step', type=int, default=None)
+    parser.add_argument('--set_step', type=int, default=10)
     parser.add_argument('--model_save_interval', type=int, default=5000)
 
     opt = parser.parse_args()
