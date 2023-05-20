@@ -77,7 +77,8 @@ def p_losses(denoise_model, img, R, T, K, logsnr, hue_delta, noise=None, loss_ty
         return loss + color_loss
     if use_hue_loss:
         x = x * 0.5 + 0.5
-        recovered_img = torch.stack([torchvision.transforms.functional.adjust_hue(x[i], hue_delta[i]) for i in range(B)])
+        recovered_img = torch.stack(
+            [torchvision.transforms.functional.adjust_hue(x[i], hue_delta[i]) for i in range(B)])
         hue_loss_weight = F.mse_loss(recovered_img.to(dev()) * 255, x.to(dev()) * 255)
         hue_loss = 0.1 * F.mse_loss(hue_pred.squeeze(), hue_delta.to(hue_pred))
         hue_loss = hue_loss_weight * hue_loss
@@ -145,9 +146,15 @@ def p_mean_variance(model, x, z, R, T, K, logsnr, logsnr_next, w=2.0):
 
     batch = xt2batch(x, logsnr.repeat(b), z, R, T, K)
 
-    pred_noise = model(batch, cond_mask=torch.tensor([True] * b)).detach().cpu()
+    if model.module.use_hue_decoder:
+        pred_noise, _ = model(batch, cond_mask=torch.tensor([True] * b))
+        pred_noise = pred_noise.detach().cpu()
+        pred_noise_unconditioned, _ = model(batch, cond_mask=torch.tensor([False] * b))
+        pred_noise_unconditioned = pred_noise_unconditioned.detach().cpu()
+    else:
+        pred_noise = model(batch, cond_mask=torch.tensor([True] * b)).detach().cpu()
+        pred_noise_unconditioned = model(batch, cond_mask=torch.tensor([False] * b)).detach().cpu()
     batch['x'] = torch.randn_like(x)
-    pred_noise_unconditioned = model(batch, cond_mask=torch.tensor([False] * b)).detach().cpu()
 
     pred_noise_final = (1 + w) * pred_noise - w * pred_noise_unconditioned
 
