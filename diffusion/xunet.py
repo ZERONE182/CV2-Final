@@ -7,7 +7,6 @@ from etils.enp import numpy_utils
 import utils
 from typing import Tuple
 
-
 lazy = numpy_utils.lazy
 etils.enp.linalg._tf_or_xnp = lambda x: lazy.get_xnp(x)
 
@@ -367,10 +366,10 @@ class XUNet(torch.nn.Module):
     use_pos_emb: bool = True
     use_ref_pose_emb: bool = True
 
-    def __init__(self, **kwargs):
+    def __init__(self, use_hue_decoder=False, **kwargs):
         self.__dict__.update(kwargs)
         super().__init__()
-
+        self.use_hue_decoder = use_hue_decoder
         assert self.H % (2 ** (
                 len(self.ch_mult) - 1)) == 0, f"Size of the image must me multiple of {2 ** (len(self.ch_mult) - 1)}"
         assert self.W % (2 ** (
@@ -425,6 +424,21 @@ class XUNet(torch.nn.Module):
             dropout=self.dropout,
             attn_heads=self.attn_heads,
             use_attn=self.num_resolutions in self.attn_resolutions)
+
+        # hue_delta prediction
+        if self.use_hue_decoder:
+            self.hue_decoder = torch.nn.Sequential(
+                torch.nn.Conv2d(self.dim_out[-1] * 2, self.dim_out[-1] * 4, kernel_size=3, padding=1),  # 1024 -> 2048
+                torch.nn.AvgPool2d(kernel_size=2, stride=2),  # 8x8 -> 4x4
+                torch.nn.ReLU(),
+                torch.nn.Conv2d(self.dim_out[-1] * 4, self.dim_out[-1] // 4, kernel_size=1, stride=1),  # 2048 -> 128
+                torch.nn.ReLU(),
+                torch.nn.Flatten(start_dim=1),  # 128x4x4 -> 2048
+                torch.nn.Linear(2048, 256),  # 4098 -> 256
+                torch.nn.ReLU(),
+                torch.nn.Linear(256, 1),  # 256 -> 1
+                torch.nn.Tanh()
+            )
 
         # Downsampling
         self.upsample = torch.nn.ModuleDict()
@@ -508,7 +522,9 @@ class XUNet(torch.nn.Module):
         emb = logsnr_emb[..., None, None] + pose_embs[-1]
 
         h = self.middle(h, emb)
-
+        if self.use_hue_decoder:
+            hue_delta = self.hue_decoder(rearrange(h, 'b f c h w -> b (f c) h w'))
+        # hue_delta = rearrange(hue_delta, '(b f) d -> b f d', b=B, f=2)
         # upsampling
         for i_level in reversed(range(self.num_resolutions)):
             emb = logsnr_emb[..., None, None] + pose_embs[i_level]
@@ -524,7 +540,12 @@ class XUNet(torch.nn.Module):
         assert not hs  # check hs is empty
 
         h = torch.nn.functional.silu(self.lastgn(h))  # [B, F, self.ch, 128, 128]
-        return rearrange(self.lastconv(rearrange(h, 'b f c h w -> (b f) c h w')), '(b f) c h w -> b f c h w', b=B)[:, 1]
+        pred_noise = self.lastconv(rearrange(h, 'b f c h w -> (b f) c h w'))
+        pred_noise = rearrange(pred_noise, '(b f) c h w -> b f c h w', b=B)[:, 1]
+        if self.use_hue_decoder:
+            return pred_noise, hue_delta
+        else:
+            return pred_noise
 
 # if __name__ == "__main__":
 #     h, w = 56, 56

@@ -1,8 +1,10 @@
 import torch
 import numpy as np
 import torch.nn.functional as F
+import torchvision.transforms.functional
 from tqdm import tqdm
 from matplotlib import pyplot as plt
+
 
 def dev():
     return torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -38,7 +40,8 @@ def q_sample(z, logsnr, noise):
     return alpha * z + sigma * noise
 
 
-def p_losses(denoise_model, img, R, T, K, logsnr, noise=None, loss_type="l2", cond_prob=0.1, use_color_loss=False):
+def p_losses(denoise_model, img, R, T, K, logsnr, hue_delta, noise=None, loss_type="l2", cond_prob=0.1,
+             use_color_loss=False, use_hue_loss=False):
     B, N, C, H, W = img.shape
     x = img[:, 0]
     z = img[:, 1]
@@ -52,9 +55,10 @@ def p_losses(denoise_model, img, R, T, K, logsnr, noise=None, loss_type="l2", co
     x_condition = torch.where(cond_mask[:, None, None, None], x, torch.randn_like(x))
 
     batch = xt2batch(x=x_condition, logsnr=logsnr, z=z_noisy, R=R, T=T, K=K)
-
-    predicted_noise = denoise_model(batch, cond_mask=cond_mask)
-
+    if use_hue_loss:
+        predicted_noise, hue_pred = denoise_model(batch, cond_mask=cond_mask)
+    else:
+        predicted_noise = denoise_model(batch, cond_mask=cond_mask)
     if loss_type == 'l1':
         loss = F.l1_loss(noise.to(dev()), predicted_noise)
     elif loss_type == 'l2':
@@ -71,7 +75,16 @@ def p_losses(denoise_model, img, R, T, K, logsnr, noise=None, loss_type="l2", co
         color_loss = torch.nn.MSELoss()
         color_loss = ((logsnr.to(dev()) + 20) / 20 * color_loss(img_color_mean.to(dev()), rec_color_mean)).mean()
         return loss + color_loss
-    return loss
+    if use_hue_loss:
+        x = x * 0.5 + 0.5
+        recovered_img = torch.stack(
+            [torchvision.transforms.functional.adjust_hue(x[i], hue_delta[i]) for i in range(B)])
+        hue_loss_weight = F.mse_loss(recovered_img.to(dev()) * 255, x.to(dev()) * 255)
+        hue_loss = 0.01 * F.mse_loss(hue_pred.squeeze(), hue_delta.to(hue_pred))
+        hue_loss = hue_loss_weight * hue_loss
+        return loss + hue_loss
+    else:
+        return loss
 
 
 @torch.no_grad()
@@ -133,9 +146,15 @@ def p_mean_variance(model, x, z, R, T, K, logsnr, logsnr_next, w=2.0):
 
     batch = xt2batch(x, logsnr.repeat(b), z, R, T, K)
 
-    pred_noise = model(batch, cond_mask=torch.tensor([True] * b)).detach().cpu()
+    if model.module.use_hue_decoder:
+        pred_noise, _ = model(batch, cond_mask=torch.tensor([True] * b))
+        pred_noise = pred_noise.detach().cpu()
+        pred_noise_unconditioned, _ = model(batch, cond_mask=torch.tensor([False] * b))
+        pred_noise_unconditioned = pred_noise_unconditioned.detach().cpu()
+    else:
+        pred_noise = model(batch, cond_mask=torch.tensor([True] * b)).detach().cpu()
+        pred_noise_unconditioned = model(batch, cond_mask=torch.tensor([False] * b)).detach().cpu()
     batch['x'] = torch.randn_like(x)
-    pred_noise_unconditioned = model(batch, cond_mask=torch.tensor([False] * b)).detach().cpu()
 
     pred_noise_final = (1 + w) * pred_noise - w * pred_noise_unconditioned
 

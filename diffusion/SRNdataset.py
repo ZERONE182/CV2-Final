@@ -2,6 +2,8 @@ import os
 import pickle
 import random
 import numpy as np
+import torch
+import torchvision.transforms.functional
 from PIL import Image
 from torch.utils.data import Dataset, DataLoader
 
@@ -49,6 +51,7 @@ class SRNDataset(Dataset):
 
         random.seed(0)
         random.shuffle(all_the_vid)
+        self.split = split
         if split == 'train':
             self.ids = all_the_vid[:int(len(all_the_vid) * 0.9)]
         else:
@@ -83,19 +86,24 @@ class SRNDataset(Dataset):
             poses.append(pose)
 
         imgs = np.stack(imgs, 0)
+        hue_delta = 0
+        if self.split == 'train':
+            hue_delta = random.random() - 0.5
+            adjust_img = torchvision.transforms.functional.adjust_hue(torch.Tensor(imgs[1]), hue_delta)
+            imgs[1] = adjust_img.numpy()
         poses = np.stack(poses, 0)
         R = poses[:, :3, :3]
         T = poses[:, :3, 3]
 
-        return imgs, R, T, K
+        return imgs, R, T, K, hue_delta
 
 
-if __name__ == "__main__":
-
-    from torch.utils.data import DataLoader
-
-    d = SRNDataset('train')
-    dd = d[0]
-
-    for ddd in dd:
-        print(ddd.shape)
+# if __name__ == "__main__":
+#
+#     from torch.utils.data import DataLoader
+#
+#     d = SRNDataset('train')
+#     dd = d[0]
+#
+#     for ddd in dd:
+#         print(ddd.shape)
