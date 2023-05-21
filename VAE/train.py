@@ -108,6 +108,7 @@ def validation(model, loader_val, writer, step, batch_size=8, device='cuda'):
         
         batch = {'x':ori_img[:,0].to(device), 'z':ori_img[:,1].to(device), 'R': R.to(device), 't': T.to(device), 'K': K.to(device),}
         input_img = ori_img[:, 0].detach().cpu().numpy()
+        input_img = ((input_img.clip(-1, 1)+1)*127.5).astype(np.uint8)
         gt_img = ori_img[:, 1].detach().cpu().numpy()
         gt_img = ((gt_img.clip(-1, 1)+1)*127.5).astype(np.uint8)
         pred_img = model.module.eval_img(batch, None).detach().cpu().numpy()
