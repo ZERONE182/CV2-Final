@@ -83,8 +83,8 @@ def train(model, optimizer, loader, loader_val, writer, now, step, args):
             writer.add_scalar("train/loss", loss.item(), global_step=step)
             writer.add_scalar("train/lr", optimizer.param_groups[0]['lr'], global_step=step)
 
-            if step % args.verbose_interval == 0:
-                print(f"loss: {loss.item()}, kld loss: {kld_loss.item()}, img loss: {img_loss.item()}")
+            # if step % args.verbose_interval == 0:
+            #     print(f"loss: {loss.item()}, kld loss: {kld_loss.item()}, img loss: {img_loss.item()}")
 
             if step % args.validation_interval == 0:
                 validation(model, loader_val, writer, step, args.batch_size)
@@ -95,6 +95,7 @@ def train(model, optimizer, loader, loader_val, writer, now, step, args):
 
             step += 1
 
+        print(f"loss: {loss.item()}, kld loss: {kld_loss.item()}, img loss: {img_loss.item()}")
         if e % args.save_interval == 0:
             torch.save({'optim': optimizer.state_dict(), 'model': model.state_dict(), 'step': step, 'epoch': e},
                        now + f"/latest.pt")
@@ -111,12 +112,16 @@ def validation(model, loader_val, writer, step, batch_size=8, device='cuda'):
         input_img = ((input_img.clip(-1, 1)+1)*127.5).astype(np.uint8)
         gt_img = ori_img[:, 1].detach().cpu().numpy()
         gt_img = ((gt_img.clip(-1, 1)+1)*127.5).astype(np.uint8)
-        pred_img = model.module.eval_img(batch, None).detach().cpu().numpy()
+        pred_img, recon_img = model.module.eval_img(batch, None)
+        pred_img = pred_img.detach().cpu().numpy()
+        recon_img = recon_img.detach().cpu().numpy()
         pred_img = ((pred_img.clip(-1, 1)+1)*127.5).astype(np.uint8)
+        recon_img = ((recon_img.clip(-1, 1)+1)*127.5).astype(np.uint8)
 
         writer.add_images(f"train/input", input_img, step)
         writer.add_images(f"train/gt", gt_img, step)
         writer.add_images(f"train/pred",pred_img, step)
+        writer.add_images(f"train/recon", recon_img, step)
 
     # print('image sampled!')
     writer.flush()

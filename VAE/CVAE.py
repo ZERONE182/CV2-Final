@@ -240,8 +240,8 @@ class ConditionalVAE(nn.Module):
         pose_embeds = self.condition_processor(batch, cond_mask)
         x = batch['x']
         z_mu, z_logvar = self.encode(x, pose_embeds)
-        img_recon, _ = self.decode(z_mu, pose_embeds)
-        return img_recon
+        pred_img, recon_img = self.decode(z_mu, pose_embeds)
+        return pred_img, recon_img
 
 # class LabelMapping(nn.Module):
 #     def __init__(self, channel:int=8, category:int=0, f_num:int=1) -> None:
