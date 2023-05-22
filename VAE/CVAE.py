@@ -232,8 +232,8 @@ class ConditionalVAE(nn.Module):
         kld = torch.mean(
         -0.5 * torch.sum(1 + z_logvar - z_mu.pow(2) - z_logvar.exp(), dim=1), dim=0
         )
-        img_loss = ((img_gen - img_gt)**2).mean()
-        img_loss += ((img_recon - img_input)**2).mean()
+        img_loss = ((img_gen - img_gt)**2).sum(dim=(1,2,3)).mean()
+        img_loss += ((img_recon - img_input)**2).sum(dim=(1,2,3)).mean()
         return self.beta * kld , img_loss
     
     def eval_img(self, batch, cond_mask=None):
