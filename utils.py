@@ -67,6 +67,15 @@ def p_losses(denoise_model, img, R, T, K, logsnr, hue_delta, noise=None, loss_ty
         loss = F.smooth_l1_loss(noise.to(dev()), predicted_noise)
     else:
         raise NotImplementedError()
+    # rec_img = reconstruct_z_start(z_noisy.to(dev()), predicted_noise, logsnr.to(dev()))
+    # plt.subplot(1, 2, 1)
+    # plt.imshow(rec_img[0].permute(1, 2, 0).detach().cpu().numpy())
+    # plt.axis('off')
+    # plt.subplot(1, 2, 2)
+    # plt.imshow(z[0].permute(1, 2, 0).detach().cpu().numpy())
+    # plt.axis('off')
+    # plt.savefig("test.png")
+    # plt.show()
     if use_color_loss:
         rec_img = reconstruct_z_start(z_noisy.to(dev()), predicted_noise, logsnr.to(dev()))
         img_color_mean = torch.mean(z, dim=(2, 3))

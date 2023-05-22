@@ -66,7 +66,7 @@ def train(model, optimizer, loader, loader_val, writer, now, step, args):
         print(f'starting epoch {e}')
 
         for img, R, T, K, hue_delta in tqdm(loader):
-            # validation(model, loader_val, writer, step, args.timesteps, args.batch_size)
+            validation(model, loader_val, writer, step, args.timesteps, args.batch_size)
 
             warmup(optimizer, step, args.warmup_step / args.batch_size, args.lr)
 

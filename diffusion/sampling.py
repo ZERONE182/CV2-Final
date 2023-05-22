@@ -45,7 +45,7 @@ def main(args):
     model = torch.nn.DataParallel(model)
     model.to(utils.dev())
 
-    ckpt = torch.load(args.model)
+    ckpt = torch.load(args.model, map_location=torch.device(utils.dev()))
     model.load_state_dict(ckpt['model'])
 
     w = torch.tensor([0, 1, 2, 3, 4, 5, 6, 7])
@@ -53,6 +53,8 @@ def main(args):
     record = [[data_imgs[0][None].repeat(b, axis=0),
                data_Rs[0],
                data_Ts[0]]]
+
+    data_K = data_K.repeat(b, 1, 1)
 
     result_dir = os.path.join(args.result_dir, os.path.basename(args.target))
 
