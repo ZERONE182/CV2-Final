@@ -34,7 +34,11 @@ def main(args):
     optimizer = Adam(model.parameters(), lr=args.lr, betas=(0.9, 0.99))
 
     if args.transfer == "":
-        now = './results/shapenet_SRN_car/' + str(int(time.time()))
+        if args.exp_name is None:
+            now = './results/shapenet_SRN_car/' + str(int(time.time()))
+        else:
+            now = './results/shapenet_SRN_car/' + args.exp_name
+        # now = './results/shapenet_SRN_car/' + "no_nonlinear"
         writer = SummaryWriter(now)
         step = 0
     else:
@@ -46,8 +50,10 @@ def main(args):
         optimizer.load_state_dict(ckpt['optim'])
 
         now = args.transfer
+        # now = args.transfer + "_val"
         writer = SummaryWriter(now)
         step = ckpt['step']
+    # validation(model, loader, writer, step, args.batch_size)
     train(model, optimizer, loader, loader_val, writer, now, step, args)
 
 
@@ -115,6 +121,12 @@ def validation(model, loader_val, writer, step, batch_size=8, device='cuda'):
         pred_img, recon_img = model.module.eval_img(batch, None)
         pred_img = pred_img.detach().cpu().numpy()
         recon_img = recon_img.detach().cpu().numpy()
+
+        writer.add_scalar("val/recon_min", recon_img.min(), global_step=step)
+        writer.add_scalar("val/recon_max", recon_img.max(), global_step=step)
+        writer.add_scalar("val/gen_min", pred_img.min(), global_step=step)
+        writer.add_scalar("val/gen_max", pred_img.max(), global_step=step)
+
         pred_img = ((pred_img.clip(-1, 1)+1)*127.5).astype(np.uint8)
         recon_img = ((recon_img.clip(-1, 1)+1)*127.5).astype(np.uint8)
 
@@ -132,6 +144,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--data_path', type=str, default="../data/SRN/cars_train")
     parser.add_argument('--pickle_path', type=str, default="../data/cars.pickle")
+    parser.add_argument('--exp_name', type=str, default=None)
     parser.add_argument('--batch_size', type=int, default=1)
     parser.add_argument('--num_workers', type=int, default=0)
     parser.add_argument('--image_size', type=int, default=128)
