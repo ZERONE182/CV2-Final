@@ -19,8 +19,10 @@ import argparse
 
 
 def main(args):
-    d = SRNDataset('train', path=args.data_path, pickle_file=args.pickle_path, imgsize=args.image_size)
-    d_val = SRNDataset('val', path=args.data_path, pickle_file=args.pickle_path, imgsize=args.image_size)
+    d = SRNDataset('train', path=args.data_path, pickle_file=args.pickle_path, imgsize=args.image_size,
+                   use_hue_loss=args.use_hue_decoder)
+    d_val = SRNDataset('val', path=args.data_path, pickle_file=args.pickle_path, imgsize=args.image_size,
+                       use_hue_loss=False)
 
     loader = MultiEpochsDataLoader(d, batch_size=args.batch_size,
                                    shuffle=True, drop_last=True,
@@ -74,7 +76,7 @@ def train(model, optimizer, loader, loader_val, writer, now, step, args):
 
             optimizer.zero_grad()
 
-            logsnr = utils.logsnr_schedule_cosine(torch.rand((B, )))
+            logsnr = utils.logsnr_schedule_cosine(torch.rand((B,)))
 
             loss = utils.p_losses(model, img=img, R=R, T=T, K=K, logsnr=logsnr, hue_delta=hue_delta,
                                   loss_type="l2", cond_prob=0.1, use_hue_loss=args.use_hue_decoder)

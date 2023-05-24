@@ -41,7 +41,8 @@ class _RepeatSampler(object):
 
 class SRNDataset(Dataset):
 
-    def __init__(self, split, path='./data/SRN/cars_train', pickle_file='./data/cars.pickle', imgsize=128):
+    def __init__(self, split, path='./data/SRN/cars_train', pickle_file='./data/cars.pickle', imgsize=128,
+                 use_hue_loss=False):
         self.imgsize = imgsize
         self.path = path
         super().__init__()
@@ -51,6 +52,7 @@ class SRNDataset(Dataset):
 
         random.seed(0)
         random.shuffle(all_the_vid)
+        self.use_hue_loss = use_hue_loss
         self.split = split
         if split == 'train':
             self.ids = all_the_vid[:int(len(all_the_vid) * 0.9)]
@@ -87,7 +89,7 @@ class SRNDataset(Dataset):
 
         imgs = np.stack(imgs, 0)
         hue_delta = 0
-        if self.split == 'train':
+        if self.split == 'train' and self.use_hue_loss:
             hue_delta = random.random() - 0.5
             adjust_img = torchvision.transforms.functional.adjust_hue(torch.Tensor(imgs[1]), hue_delta)
             imgs[1] = adjust_img.numpy()
@@ -96,7 +98,6 @@ class SRNDataset(Dataset):
         T = poses[:, :3, 3]
 
         return imgs, R, T, K, hue_delta
-
 
 # if __name__ == "__main__":
 #
