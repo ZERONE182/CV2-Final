@@ -297,6 +297,13 @@ class ConditionalVAE(nn.Module):
         pred_img, recon_img = self.decode(z_mu, pose_embeds)
         return pred_img, recon_img
 
+    def freeze_encoder(self):
+        self.ec1.requires_grad_(False)
+        self.ec2.requires_grad_(False)
+        self.ec3.requires_grad_(False)
+        self.ec4.requires_grad_(False)
+        self.fc1.requires_grad_(False)
+
 class PoseMapping(nn.Module):
     '''Map the pose(quaternion) to two vectors'''
     def __init__(self, embed:int = 64) -> None:
